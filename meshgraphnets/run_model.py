@@ -22,21 +22,25 @@ from absl import flags
 from absl import logging
 import numpy as np
 import tensorflow.compat.v1 as tf
-from meshgraphnets import cfd_eval
-from meshgraphnets import cfd_model
-from meshgraphnets import cloth_eval
-from meshgraphnets import cloth_model
-from meshgraphnets import core_model
-from meshgraphnets import dataset
+import cfd_eval
+import cfd_model
+import cloth_eval
+import cloth_model
+import core_model
+import dataset
+import matplotlib.pyplot as plt
+
+data_dir = "/home/julian/data/flag_simple" # /home/jstang/data/flag_simple
+chkpt_dir = data_dir + "/ckpts"
 
 
 FLAGS = flags.FLAGS
 flags.DEFINE_enum('mode', 'train', ['train', 'eval'],
                   'Train model, or run evaluation.')
-flags.DEFINE_enum('model', None, ['cfd', 'cloth'],
+flags.DEFINE_enum('model', "cloth", ['cfd', 'cloth'],
                   'Select model to run.')
-flags.DEFINE_string('checkpoint_dir', None, 'Directory to save checkpoint')
-flags.DEFINE_string('dataset_dir', None, 'Directory to load dataset from.')
+flags.DEFINE_string('checkpoint_dir', chkpt_dir, 'Directory to save checkpoint')
+flags.DEFINE_string('dataset_dir', data_dir, 'Directory to load dataset from.')
 flags.DEFINE_string('rollout_path', None,
                     'Pickle file to save eval trajectories')
 flags.DEFINE_enum('rollout_split', 'valid', ['train', 'test', 'valid'],
@@ -74,6 +78,7 @@ def learner(model, params):
                      lambda: tf.group(tf.assign_add(global_step, 1)),
                      lambda: tf.group(train_op))
 
+  losses = []
   with tf.train.MonitoredTrainingSession(
       hooks=[tf.train.StopAtStepHook(last_step=FLAGS.num_training_steps)],
       checkpoint_dir=FLAGS.checkpoint_dir,
@@ -82,8 +87,12 @@ def learner(model, params):
     while not sess.should_stop():
       _, step, loss = sess.run([train_op, global_step, loss_op])
       if step % 1000 == 0:
+        losses.append(loss)
         logging.info('Step %d: Loss %g', step, loss)
     logging.info('Training complete.')
+  fig, ax = plt.subplots()
+  ax.plot(losses)
+  fig.savefig("./losses.pdf")
 
 
 def evaluator(model, params):
